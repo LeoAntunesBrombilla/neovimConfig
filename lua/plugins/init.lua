@@ -9,6 +9,7 @@ return {
 	require("plugins.treesitter"),
 	require("plugins.colorscheme"),
 	require("plugins.neoTree"),
+	require("plugins.lint"),
 	{
 		"MunifTanjim/nui.nvim",
 	},
