@@ -10,6 +10,7 @@ return {
 	require("plugins.colorscheme"),
 	require("plugins.neoTree"),
 	require("plugins.lint"),
+	require("plugins.copilot"),
 	{
 		"MunifTanjim/nui.nvim",
 	},
