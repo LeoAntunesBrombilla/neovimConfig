@@ -8,9 +8,9 @@ return {
 	require("plugins.autocompletion"),
 	require("plugins.treesitter"),
 	require("plugins.colorscheme"),
-	require("plugins.neoTree"),
 	require("plugins.lint"),
 	require("plugins.copilot"),
+	require("plugins.oil"),
 	{
 		"MunifTanjim/nui.nvim",
 	},
