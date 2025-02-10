@@ -19,6 +19,7 @@ return {
 				"vimdoc",
 				"typescript",
 				"javascript",
+				"kotlin",
 			},
 			-- Autoinstall languages that are not installed
 			auto_install = true,
