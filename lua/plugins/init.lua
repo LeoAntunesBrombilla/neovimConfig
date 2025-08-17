@@ -12,6 +12,8 @@ return {
 	require("plugins.copilot"),
 	require("plugins.oil"),
 	require("plugins.obsidian"),
+	require("plugins.trouble"),
+	require("plugins.trouble"),
 	{
 		"MunifTanjim/nui.nvim",
 	},
