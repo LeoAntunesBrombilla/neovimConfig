@@ -1,159 +1,443 @@
 return {
-	{
-		-- Main LSP Configuration
-		"neovim/nvim-lspconfig",
-		dependencies = {
-			-- Automatically install LSPs and related tools to stdpath for Neovim
-			{ "williamboman/mason.nvim", config = true }, -- NOTE: Must be loaded before dependants
-			"williamboman/mason-lspconfig.nvim",
-			"WhoIsSethDaniel/mason-tool-installer.nvim",
+	"neovim/nvim-lspconfig",
+	dependencies = {
+		"b0o/schemastore.nvim", -- JSON schemas for better json LSP
+	},
+	config = function()
+		-- ============================================
+		-- PERFORMANCE OPTIMIZATIONS
+		-- ============================================
 
-			-- Useful status updates for LSP.
-			-- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
-			{ "j-hui/fidget.nvim", opts = {} },
+		-- Reduce update time for faster diagnostics
+		vim.o.updatetime = 250 -- Default is 4000ms
 
-			-- Allows extra capabilities provided by nvim-cmp
-			"hrsh7th/cmp-nvim-lsp",
-		},
-		config = function()
-			vim.api.nvim_create_autocmd("LspAttach", {
-				group = vim.api.nvim_create_augroup("kickstart-lsp-attach", { clear = true }),
-				callback = function(event)
-					local map = function(keys, func, desc, mode)
-						mode = mode or "n"
-						vim.keymap.set(mode, keys, func, { buffer = event.buf, desc = "LSP: " .. desc })
-					end
-					map("gd", require("telescope.builtin").lsp_definitions, "[G]oto [D]efinition")
-					map("gr", require("telescope.builtin").lsp_references, "[G]oto [R]eferences")
-					map("gI", require("telescope.builtin").lsp_implementations, "[G]oto [I]mplementation")
-					map("<leader>D", require("telescope.builtin").lsp_type_definitions, "Type [D]efinition")
-					map("<leader>ds", require("telescope.builtin").lsp_document_symbols, "[D]ocument [S]ymbols")
-					map(
-						"<leader>ws",
-						require("telescope.builtin").lsp_dynamic_workspace_symbols,
-						"[W]orkspace [S]ymbols"
-					)
-					map("<leader>rn", vim.lsp.buf.rename, "[R]e[n]ame")
-					map("<leader>ca", vim.lsp.buf.code_action, "[C]ode [A]ction", { "n", "x" })
-					map("gD", vim.lsp.buf.declaration, "[G]oto [D]eclaration")
-					local client = vim.lsp.get_client_by_id(event.data.client_id)
-					if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
-						local highlight_augroup =
-							vim.api.nvim_create_augroup("kickstart-lsp-highlight", { clear = false })
-						vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
-							buffer = event.buf,
-							group = highlight_augroup,
-							callback = vim.lsp.buf.document_highlight,
-						})
+		-- Configure diagnostics globally
+		vim.diagnostic.config({
+			virtual_text = false, -- Disable inline diagnostics for performance
+			signs = true,
+			underline = true,
+			update_in_insert = false,
+			severity_sort = true,
+			float = {
+				focusable = false,
+				style = "minimal",
+				border = "rounded",
+				source = "always",
+				header = "",
+				prefix = "",
+			},
+		})
 
-						vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-							buffer = event.buf,
-							group = highlight_augroup,
-							callback = vim.lsp.buf.clear_references,
-						})
+		-- Optimize hover handler
+		vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
+			border = "rounded",
+			max_width = 80,
+			focus_id = "textDocument/hover",
+		})
 
-						vim.api.nvim_create_autocmd("LspDetach", {
-							group = vim.api.nvim_create_augroup("kickstart-lsp-detach", { clear = true }),
-							callback = function(event2)
-								vim.lsp.buf.clear_references()
-								vim.api.nvim_clear_autocmds({
-									group = "kickstart-lsp-highlight",
-									buffer = event2.buf,
-								})
-							end,
-						})
-					end
-					if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
-						map("<leader>th", function()
-							vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({ bufnr = event.buf }))
-						end, "[T]oggle Inlay [H]ints")
-					end
-				end,
-			})
+		-- Optimize signature help
+		vim.lsp.handlers["textDocument/signatureHelp"] = vim.lsp.with(vim.lsp.handlers.signature_help, {
+			border = "rounded",
+			focus_id = "textDocument/signatureHelp",
+		})
 
-			if vim.g.have_nerd_font then
-				local signs = { ERROR = "", WARN = "", INFO = "", HINT = "" }
-				local diagnostic_signs = {}
-				for type, icon in pairs(signs) do
-					diagnostic_signs[vim.diagnostic.severity[type]] = icon
-				end
-				vim.diagnostic.config({ signs = { text = diagnostic_signs } })
+		-- ============================================
+		-- CAPABILITIES SETUP (for all servers)
+		-- ============================================
+		local capabilities = vim.lsp.protocol.make_client_capabilities()
+
+		-- Add nvim-cmp capabilities if you have it installed
+		local has_cmp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+		if has_cmp then
+			capabilities = vim.tbl_deep_extend("force", capabilities, cmp_nvim_lsp.default_capabilities())
+		end
+
+		-- Optimize file watching
+		capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = false
+
+		-- ============================================
+		-- COMMON LSP KEYMAPS
+		-- ============================================
+		local function setup_keymaps(client, bufnr)
+			local opts = { buffer = bufnr, noremap = true, silent = true }
+
+			-- Navigation
+			vim.keymap.set(
+				"n",
+				"gD",
+				vim.lsp.buf.declaration,
+				vim.tbl_extend("force", opts, { desc = "Go to declaration" })
+			)
+			vim.keymap.set(
+				"n",
+				"gd",
+				vim.lsp.buf.definition,
+				vim.tbl_extend("force", opts, { desc = "Go to definition" })
+			)
+			vim.keymap.set("n", "K", vim.lsp.buf.hover, vim.tbl_extend("force", opts, { desc = "Hover documentation" }))
+			vim.keymap.set(
+				"n",
+				"gi",
+				vim.lsp.buf.implementation,
+				vim.tbl_extend("force", opts, { desc = "Go to implementation" })
+			)
+			vim.keymap.set(
+				"n",
+				"<C-k>",
+				vim.lsp.buf.signature_help,
+				vim.tbl_extend("force", opts, { desc = "Signature help" })
+			)
+			vim.keymap.set(
+				"n",
+				"gr",
+				vim.lsp.buf.references,
+				vim.tbl_extend("force", opts, { desc = "[G]o to [R]eferences" })
+			)
+			vim.keymap.set(
+				"n",
+				"gt",
+				vim.lsp.buf.type_definition,
+				vim.tbl_extend("force", opts, { desc = "[G]o to [T]ype definition" })
+			)
+
+			-- Workspace
+			vim.keymap.set(
+				"n",
+				"<leader>wa",
+				vim.lsp.buf.add_workspace_folder,
+				vim.tbl_extend("force", opts, { desc = "[W]orkspace [A]dd folder" })
+			)
+			vim.keymap.set(
+				"n",
+				"<leader>wr",
+				vim.lsp.buf.remove_workspace_folder,
+				vim.tbl_extend("force", opts, { desc = "[W]orkspace [R]emove folder" })
+			)
+			vim.keymap.set("n", "<leader>wl", function()
+				print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+			end, vim.tbl_extend("force", opts, { desc = "[W]orkspace [L]ist folders" }))
+
+			-- Actions
+			vim.keymap.set(
+				"n",
+				"<leader>rn",
+				vim.lsp.buf.rename,
+				vim.tbl_extend("force", opts, { desc = "[R]e[n]ame" })
+			)
+			vim.keymap.set(
+				{ "n", "v" },
+				"<leader>ca",
+				vim.lsp.buf.code_action,
+				vim.tbl_extend("force", opts, { desc = "[C]ode [A]ction" })
+			)
+
+			-- Format (only if the server supports it and you want to use it)
+			if client.server_capabilities.documentFormattingProvider then
+				vim.keymap.set("n", "<leader>f", function()
+					vim.lsp.buf.format({ async = true })
+				end, vim.tbl_extend("force", opts, { desc = "[F]ormat" }))
 			end
 
-			-- LSP servers and clients are able to communicate to each other what features they support.
-			--  By default, Neovim doesn't support everything that is in the LSP specification.
-			--  When you add nvim-cmp, luasnip, etc. Neovim now has *more* capabilities.
-			--  So, we create new capabilities with nvim cmp, and then broadcast that to the servers.
-			local capabilities = vim.lsp.protocol.make_client_capabilities()
-			capabilities = vim.tbl_deep_extend("force", capabilities, require("cmp_nvim_lsp").default_capabilities())
+			-- Diagnostics
+			vim.keymap.set("n", "<leader>e", function()
+				vim.diagnostic.open_float(nil, { scope = "cursor" })
+			end, vim.tbl_extend("force", opts, { desc = "Show diagnostic [E]rror" }))
+			vim.keymap.set(
+				"n",
+				"[d",
+				vim.diagnostic.goto_prev,
+				vim.tbl_extend("force", opts, { desc = "Previous diagnostic" })
+			)
+			vim.keymap.set(
+				"n",
+				"]d",
+				vim.diagnostic.goto_next,
+				vim.tbl_extend("force", opts, { desc = "Next diagnostic" })
+			)
+			vim.keymap.set(
+				"n",
+				"<leader>q",
+				vim.diagnostic.setloclist,
+				vim.tbl_extend("force", opts, { desc = "Diagnostic [Q]uickfix" })
+			)
+		end
 
-			-- Enable the following language servers
-			--  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
-			--
-			--  Add any additional override configuration in the following tables. Available keys are:
-			--  - cmd (table): Override the default command used to start the server
-			--  - filetypes (table): Override the default list of associated filetypes for the server
-			--  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
-			--  - settings (table): Override the default settings passed when initializing the server.
-			--        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
-			local servers = {
-				clangd = {},
-				-- gopls = {},
-				-- pyright = {},
-				-- rust_analyzer = {},
-				-- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
-				--
-				-- Some languages (like typescript) have entire language plugins that can be useful:
-				--    https://github.com/pmizio/typescript-tools.nvim
-				--
-				-- But for many setups, the LSP (`ts_ls`) will work just fine
-				-- ts_ls = {},
-				--
-
-				lua_ls = {
-					-- cmd = { ... },
-					-- filetypes = { ... },
-					-- capabilities = {},
-					settings = {
-						Lua = {
-							completion = {
-								callSnippet = "Replace",
-							},
-							-- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-							-- diagnostics = { disable = { 'missing-fields' } },
-						},
+		-- ============================================
+		-- TYPESCRIPT/JAVASCRIPT (Using ts_ls)
+		-- ============================================
+		require("lspconfig").ts_ls.setup({
+			capabilities = capabilities,
+			init_options = {
+				hostInfo = "neovim",
+				preferences = {
+					-- Disable inlay hints for performance
+					includeInlayParameterNameHints = "none",
+					includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+					includeInlayFunctionParameterTypeHints = false,
+					includeInlayVariableTypeHints = false,
+					includeInlayPropertyDeclarationTypeHints = false,
+					includeInlayFunctionLikeReturnTypeHints = false,
+					includeInlayEnumMemberValueHints = false,
+					-- Import module specifier
+					importModuleSpecifierPreference = "shortest",
+					-- Enable auto imports
+					includeCompletionsForModuleExports = true,
+					includeCompletionsForImportStatements = true,
+					includeAutomaticOptionalChainCompletions = true,
+					-- Code preferences
+					quotePreference = "auto",
+					allowIncompleteCompletions = true,
+					allowTextChangesInNewFiles = true,
+				},
+				maxTsServerMemory = 4096, -- Limit memory to 4GB
+			},
+			settings = {
+				typescript = {
+					inlayHints = {
+						includeInlayParameterNameHints = "none",
+						includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+						includeInlayFunctionParameterTypeHints = false,
+						includeInlayVariableTypeHints = false,
+						includeInlayPropertyDeclarationTypeHints = false,
+						includeInlayFunctionLikeReturnTypeHints = false,
+						includeInlayEnumMemberValueHints = false,
+					},
+					format = {
+						enable = false, -- Use prettier/conform instead
+					},
+					suggest = {
+						completeFunctionCalls = true,
+						includeCompletionsForImportStatements = true,
+						includeAutomaticOptionalChainCompletions = true,
+					},
+					preferences = {
+						importModuleSpecifier = "shortest",
+						preferTypeOnlyAutoImports = true,
 					},
 				},
-			}
-
-			-- Ensure the servers and tools above are installed
-			--  To check the current status of installed tools and/or manually install
-			--  other tools, you can run
-			--    :Mason
-			--
-			--  You can press `g?` for help in this menu.
-			require("mason").setup()
-
-			-- You can add other tools here that you want Mason to install
-			-- for you, so that they are available from within Neovim.
-			local ensure_installed = vim.tbl_keys(servers or {})
-			vim.list_extend(ensure_installed, {
-				"stylua", -- Used to format Lua code
-			})
-			require("mason-tool-installer").setup({ ensure_installed = ensure_installed })
-
-			require("mason-lspconfig").setup({
-				handlers = {
-					function(server_name)
-						local server = servers[server_name] or {}
-						-- This handles overriding only values explicitly passed
-						-- by the server configuration above. Useful when disabling
-						-- certain features of an LSP (for example, turning off formatting for ts_ls)
-						server.capabilities = vim.tbl_deep_extend("force", {}, capabilities, server.capabilities or {})
-						require("lspconfig")[server_name].setup(server)
-					end,
+				javascript = {
+					inlayHints = {
+						includeInlayParameterNameHints = "none",
+						includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+						includeInlayFunctionParameterTypeHints = false,
+						includeInlayVariableTypeHints = false,
+						includeInlayPropertyDeclarationTypeHints = false,
+						includeInlayFunctionLikeReturnTypeHints = false,
+						includeInlayEnumMemberValueHints = false,
+					},
+					format = {
+						enable = false, -- Use prettier/conform instead
+					},
+					suggest = {
+						completeFunctionCalls = true,
+						includeCompletionsForImportStatements = true,
+						includeAutomaticOptionalChainCompletions = true,
+					},
+					preferences = {
+						importModuleSpecifier = "shortest",
+					},
 				},
-			})
-		end,
-	},
+				completions = {
+					completeFunctionCalls = true,
+				},
+			},
+			on_attach = function(client, bufnr)
+				-- Disable formatting (use conform/prettier instead)
+				client.server_capabilities.documentFormattingProvider = false
+				client.server_capabilities.documentRangeFormattingProvider = false
+
+				-- Disable semantic tokens for performance
+				client.server_capabilities.semanticTokensProvider = nil
+
+				setup_keymaps(client, bufnr)
+			end,
+			flags = {
+				debounce_text_changes = 150, -- Debounce typing by 150ms
+			},
+			-- Find the root directory
+			root_dir = function(fname)
+				local util = require("lspconfig.util")
+				return util.root_pattern("package.json", "tsconfig.json", ".git")(fname)
+					or util.find_git_ancestor(fname)
+					or vim.fn.getcwd()
+			end,
+			single_file_support = true, -- Support single JS/TS files without project
+		})
+
+		-- ============================================
+		-- PYTHON (Pyright)
+		-- ============================================
+		require("lspconfig").pyright.setup({
+			capabilities = capabilities,
+			settings = {
+				python = {
+					analysis = {
+						autoSearchPaths = true,
+						useLibraryCodeForTypes = true,
+						diagnosticMode = "openFilesOnly", -- Performance: only analyze open files
+						typeCheckingMode = "basic", -- Use "strict" for more checks
+						autoImportCompletions = true,
+						completeFunctionParens = true,
+					},
+				},
+			},
+			on_attach = setup_keymaps,
+			flags = {
+				debounce_text_changes = 150,
+			},
+		})
+
+		-- ============================================
+		-- LUA
+		-- ============================================
+		require("lspconfig").lua_ls.setup({
+			capabilities = capabilities,
+			settings = {
+				Lua = {
+					runtime = {
+						version = "LuaJIT",
+						path = vim.split(package.path, ";"),
+					},
+					diagnostics = {
+						globals = { "vim" },
+						disable = { "missing-fields" }, -- Avoid annoying warnings
+					},
+					workspace = {
+						library = {
+							vim.api.nvim_get_runtime_file("", true),
+						},
+						checkThirdParty = false, -- Faster startup
+						maxPreload = 2000,
+						preloadFileSize = 1000,
+					},
+					telemetry = { enable = false },
+					hint = {
+						enable = false, -- Disable hints for performance
+					},
+					completion = {
+						callSnippet = "Replace",
+						showWord = "Disable", -- Don't show text matches
+					},
+					format = {
+						enable = false, -- Use stylua instead
+					},
+				},
+			},
+			on_attach = setup_keymaps,
+			flags = {
+				debounce_text_changes = 150,
+			},
+		})
+
+		-- ============================================
+		-- JSON (with schemastore)
+		-- ============================================
+		require("lspconfig").jsonls.setup({
+			capabilities = capabilities,
+			settings = {
+				json = {
+					schemas = require("schemastore").json.schemas(),
+					validate = { enable = true },
+				},
+			},
+			on_attach = setup_keymaps,
+		})
+
+		-- ============================================
+		-- HTML/CSS
+		-- ============================================
+		require("lspconfig").html.setup({
+			capabilities = capabilities,
+			on_attach = setup_keymaps,
+		})
+
+		require("lspconfig").cssls.setup({
+			capabilities = capabilities,
+			on_attach = setup_keymaps,
+		})
+
+		-- ============================================
+		-- TAILWIND CSS (if you use it)
+		-- ============================================
+		-- require("lspconfig").tailwindcss.setup({
+		-- 	capabilities = capabilities,
+		-- 	on_attach = setup_keymaps,
+		-- 	settings = {
+		-- 		tailwindCSS = {
+		-- 			experimental = {
+		-- 				classRegex = {
+		-- 					{ "cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]" },
+		-- 					{ "cn\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]" },
+		-- 				},
+		-- 			},
+		-- 		},
+		-- 	},
+		-- })
+
+		-- ============================================
+		-- AUTO COMMANDS FOR PERFORMANCE
+		-- ============================================
+		local lsp_group = vim.api.nvim_create_augroup("LspPerformance", { clear = true })
+
+		-- Disable LSP for large files
+		vim.api.nvim_create_autocmd("BufReadPre", {
+			group = lsp_group,
+			callback = function(args)
+				local max_filesize = 500 * 1024 -- 500 KB
+				local ok, stats = pcall(vim.loop.fs_stat, args.file)
+				if ok and stats and stats.size > max_filesize then
+					vim.b[args.buf].large_file = true
+				end
+			end,
+		})
+
+		-- Attach LSP only if not a large file
+		vim.api.nvim_create_autocmd("LspAttach", {
+			group = lsp_group,
+			callback = function(args)
+				local bufnr = args.buf
+				if vim.b[bufnr].large_file then
+					vim.schedule(function()
+						vim.lsp.buf_detach_client(bufnr, args.data.client_id)
+					end)
+					vim.notify("LSP detached for large file", vim.log.levels.INFO)
+				end
+			end,
+		})
+
+		-- Show diagnostics on hover
+		vim.api.nvim_create_autocmd("CursorHold", {
+			group = lsp_group,
+			callback = function()
+				if not vim.b.large_file then
+					vim.diagnostic.open_float(nil, {
+						focusable = false,
+						close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
+						border = "rounded",
+						source = "always",
+						prefix = " ",
+						scope = "cursor",
+					})
+				end
+			end,
+		})
+
+		-- Highlight references on cursor hold
+		vim.api.nvim_create_autocmd("LspAttach", {
+			group = lsp_group,
+			callback = function(args)
+				local client = vim.lsp.get_client_by_id(args.data.client_id)
+				if client and client.server_capabilities.documentHighlightProvider then
+					vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
+						buffer = args.buf,
+						callback = vim.lsp.buf.document_highlight,
+					})
+					vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+						buffer = args.buf,
+						callback = vim.lsp.buf.clear_references,
+					})
+				end
+			end,
+		})
+	end,
 }

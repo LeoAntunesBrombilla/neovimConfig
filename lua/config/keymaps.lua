@@ -1,7 +1,6 @@
 local map = vim.api.nvim_set_keymap
 local opts = { noremap = true, silent = true }
 
-map("n", "<C-n>", ":NERDTreeToggle<CR>", opts)
 map("n", "<C-p>", ":Telescope find_files<CR>", opts)
 vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float, { desc = "Show diagnostic [E]rror messages" })
 vim.keymap.set("n", "<leader>q", vim.diagnostic.setloclist, { desc = "Open diagnostic [Q]uickfix list" })
@@ -11,8 +10,20 @@ map("n", "<leader>tv", ":vsplit | terminal<CR>", opts) -- vertical split termina
 map("n", "<leader>tt", ":tabnew | terminal<CR>", opts) -- new tab terminal
 map("n", "<leader>tf", ":terminal<CR>", opts) -- terminal in current window
 
--- Terminal mode mappings
-map("t", "<Esc>", "<C-\\><C-n>", opts) -- easier exit from terminal mode
+-- Better window navigation
+map("n", "<C-h>", "<C-w>h", opts)
+map("n", "<C-j>", "<C-w>j", opts)
+map("n", "<C-k>", "<C-w>k", opts)
+map("n", "<C-l>", "<C-w>l", opts)
+
+-- Navigate buffers
+map("n", "<S-l>", ":bnext<CR>", opts)
+map("n", "<S-h>", ":bprevious<CR>", opts)
+map("n", "<leader>bd", ":bdelete<CR>", opts) -- close buffer
+
+-- Center cursor when jumping
+map("n", "<C-d>", "<C-d>zz", opts)
+map("n", "<C-u>", "<C-u>zz", opts)
 
 vim.api.nvim_create_user_command("CopyOilPath", function()
 	-- Get the current buffer name (which is the directory path in oil)
