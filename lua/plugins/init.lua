@@ -14,6 +14,7 @@ return {
 	require("plugins.obsidian"),
 	require("plugins.trouble"),
 	require("plugins.trouble"),
+	require("plugins.luavim"),
 	{
 		"MunifTanjim/nui.nvim",
 	},
