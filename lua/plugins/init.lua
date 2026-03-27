@@ -10,9 +10,12 @@ return {
 	require("plugins.colorscheme"),
 	require("plugins.lint"),
 	require("plugins.copilot"),
+	require("plugins.claude"),
+	require("plugins.autopairs"),
+	require("plugins.surround"),
+	require("plugins.tmux"),
 	require("plugins.oil"),
 	require("plugins.obsidian"),
-	require("plugins.trouble"),
 	require("plugins.trouble"),
 	require("plugins.luavim"),
 	{

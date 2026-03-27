@@ -5,16 +5,13 @@ map("n", "<C-p>", ":Telescope find_files<CR>", opts)
 vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float, { desc = "Show diagnostic [E]rror messages" })
 vim.keymap.set("n", "<leader>q", vim.diagnostic.setloclist, { desc = "Open diagnostic [Q]uickfix list" })
 
+-- Terminal management keymaps
 map("n", "<leader>th", ":split | terminal<CR>", opts) -- horizontal split terminal
 map("n", "<leader>tv", ":vsplit | terminal<CR>", opts) -- vertical split terminal
 map("n", "<leader>tt", ":tabnew | terminal<CR>", opts) -- new tab terminal
 map("n", "<leader>tf", ":terminal<CR>", opts) -- terminal in current window
 
--- Better window navigation
-map("n", "<C-h>", "<C-w>h", opts)
-map("n", "<C-j>", "<C-w>j", opts)
-map("n", "<C-k>", "<C-w>k", opts)
-map("n", "<C-l>", "<C-w>l", opts)
+-- Window/pane navigation handled by vim-tmux-navigator plugin (lua/plugins/tmux)
 
 -- Navigate buffers
 map("n", "<S-l>", ":bnext<CR>", opts)

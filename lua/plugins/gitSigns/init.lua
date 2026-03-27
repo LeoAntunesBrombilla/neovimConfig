@@ -118,7 +118,7 @@ return {
 			vim.keymap.set("n", "<leader>gb", gitsigns.toggle_current_line_blame, { desc = "[G]it toggle [B]lame" })
 
 			-- Show full blame info in floating window
-			vim.keymap.set("n", "<leader>gB", function()
+			vim.keymap.set("n", "<leader>gbl", function()
 				gitsigns.blame_line({ full = true })
 			end, { desc = "[G]it [B]lame full info" })
 

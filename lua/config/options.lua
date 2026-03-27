@@ -18,3 +18,6 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 vim.g.have_nerd_font = true
 vim.opt.clipboard:append("unnamedplus")
+vim.opt.undofile = true -- Persist undo history across sessions
+vim.opt.scrolloff = 8 -- Keep 8 lines visible above/below cursor
+vim.opt.signcolumn = "yes" -- Always show sign column (prevents layout shift)
