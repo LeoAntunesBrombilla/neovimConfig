@@ -9,6 +9,7 @@ local langs = {
     "markdown", "markdown_inline", "query", "vim", "vimdoc",
     "typescript", "javascript", "tsx", "python",
     "json", "jsonc", "yaml", "toml",
+    "scala",
 }
 
 vim.schedule(function()

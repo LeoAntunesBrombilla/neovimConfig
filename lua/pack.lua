@@ -63,6 +63,9 @@ vim.pack.add({
     { src = "https://github.com/epwalsh/obsidian.nvim" },
     { src = "https://github.com/iamcco/markdown-preview.nvim" },
 
+    -- Scala
+    { src = "https://github.com/scalameta/nvim-metals" },
+
     -- AI
     { src = "https://github.com/greggh/claude-code.nvim" },
 })
